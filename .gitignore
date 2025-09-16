@@ -13,3 +13,6 @@ data/
 .Rdata
 .httr-oauth
 .quarto
+
+# ignore Gronke's local sandbox
+gronkesandbox/
