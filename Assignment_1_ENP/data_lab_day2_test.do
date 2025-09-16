@@ -1,4 +1,4 @@
-* Calculate ENP for one district in Italy
+ Calculate ENP for one district in Italy
 
 version 18
 clear all

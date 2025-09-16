@@ -1,4 +1,4 @@
-* Calculate ENP for one district in Italy
+ Calculate ENP for one district in Italy
 
 version 18
 clear all
@@ -16,17 +16,9 @@ keep if inlist(ctr_n, "Italy")
 tab(yr)
 
 
-keep if inrange(yr, 2013, 2013)
+keep if inrange(yr, 2000, 2025)
 
 tab(yr)
-
-tab(cst_n)
-
-tab(cst)
-
-* keep if cst == 1
-
-* tab(cst)
 
 
 gen seatshare = (seat/mag)
@@ -34,8 +26,8 @@ gen voteshare2 = pvs1^2
 gen seatshare2 = seatshare^2
 
 
-bysort cst: egen double env_sum = total(voteshare2)
-bysort cst: egen double enp_sum = total(seatshare2)
+bysort yr cst: egen double env_sum = total(voteshare2)
+bysort yr cst: egen double enp_sum = total(seatshare2)
 
 gen enp_v = 1/env_sum
 gen enp_s = 1/enp_sum
@@ -51,11 +43,11 @@ keep if _tag
 
 
 twoway ///
-    (scatter enp_s enp_v, msize(small)) ///
+    (scatter enp_s enp_v, msize(tiny)) ///
     (function y = x, range(1 6) lcolor(red) lpattern(dash)) ///
     (lowess enp_s enp_v, lcolor(blue)), ///
+    by(yr, cols(4) compact note("") title("ENP Votes vs ENP Seats — Italy by Year")) ///
     xtitle("ENP Votes") ytitle("ENP Seats") ///
     xscale(range(1 6)) yscale(range(1 6)) ///
     xlabel(1(1)6) ylabel(1(1)6, angle(0)) legend(off) ///
-    title("ENP Votes vs ENP Seats — Italy 2013", size(medsmall)) ///
-    name(enp_it_2013, replace)
+    name(enp_it_all_by, replace)
