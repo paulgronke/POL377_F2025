@@ -9,3 +9,7 @@ data/
 
 # system
 .DS_Store
+.Rproj.user
+.Rdata
+.httr-oauth
+.quarto
