@@ -1,0 +1,72 @@
+---
+title: "Elections American Style First Memo"
+author: "Frank Adonteng"
+date: "2025-09-09"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+library(textdata)
+library(dplyr)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+load(url("https://www.dropbox.com/scl/fi/kp1lty1chtgzye8gnufl4/clea_lc_20240419.RData?rlkey=phvtoh91a48v9jky1m1120vnw&st=h7lnys7v&dl=1"))
+
+```
+
+```{r}
+glimpse(clea_lc_20240419)
+```
+
+- Chosen Country: Germany 
+- 1907
+
+```{r}
+germnany_1907 <- clea_lc_20240419 %>%
+  filter(ctr_n == "Germany", yr == 1907)
+  
+  germany_1907_district1 <- germnany_1907
+ 
+  
+  germany_1907_district1 <- germany_1907_district1%>%
+    group_by(cst) %>%
+    summarise(enp_v = 1/sum(pvs1^2),
+              enp_s = 1/sum((seat/mag)^2))
+```
+
+- 1903
+
+```{r}
+germany_1903 <- clea_lc_20240419 %>%
+  filter(ctr_n == "Germany", yr==1903)
+
+
+germany_1903_district1 <- germany_1903 
+  
+
+germany_1903_district1 <- germany_1903_district1 %>%
+  group_by(cst)%>%
+  summarise(enp_v = 1/sum(pvs1^2),
+            enp_s =1/sum((seat/mag)^2)) 
+ 
+```
+
+
+
+-
+
+```{r}
+
+```
+
+

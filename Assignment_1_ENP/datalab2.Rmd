@@ -1,0 +1,56 @@
+---
+title: "Italian Analysis"
+author: "Dr. Paul Gronke"
+date: "`r Sys.Date()`"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+## My Italian Analysis
+
+This is my analysis of the Effective Number of Parties in Italy from 1990 to 2025. 
+
+
+```{r readdata, echo = FALSE, include = TRUE}
+# Load the data 
+# Loads clea_lc_20240419
+
+load(url("https://www.dropbox.com/scl/fi/kp1lty1chtgzye8gnufl4/clea_lc_20240419.RData?rlkey=phvtoh91a48v9jky1m1120vnw&st=h7lnys7v&dl=1"))
+
+italy_data <- clea_lc_20240419 %>%
+  filter(ctr_n == "Italy" & yr >= 2000 & yr <= 2025) 
+# For some reason, all the seat totals prior to 2000 are -990 
+
+
+italy_2013 <- italy_data %>%
+  filter(ctr_n == "Italy", yr == 2013)
+
+italy_2013_enp <- italy_2013 %>%
+  group_by(yr, cst) %>%
+  summarize(enp_v = 1/sum(pvs1^2),
+            enp_s = 1/sum((seat/mag)^2))
+
+italy_enp <- italy_data %>%
+  group_by(yr, cst) %>%
+  summarize(enp_v = 1/sum(pvs1^2),
+            enp_s = 1/sum((seat/mag)^2))
+
+italy_national_partydata <- italy_data %>%
+  ungroup() %>% 
+  group_by(yr, pty, .drop = TRUE) %>%
+  summarize(pty_v = sum(pv1),
+            pty_s = (seat))
+
+italy_national_votesandseats <- italy_data %>%
+  group_by(yr) %>%
+  summarize(total_votes = sum(pv1),
+            total_seats = sum(seat))
+  
+
+```
