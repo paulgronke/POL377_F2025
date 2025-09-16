@@ -10,6 +10,9 @@ editor_options:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
+library(haven)
+library(stringi)
+
 ```
 
 ## My Italian Analysis
@@ -41,16 +44,42 @@ italy_enp <- italy_data %>%
   summarize(enp_v = 1/sum(pvs1^2),
             enp_s = 1/sum((seat/mag)^2))
 
-italy_national_partydata <- italy_data %>%
-  ungroup() %>% 
-  group_by(yr, pty, .drop = TRUE) %>%
-  summarize(pty_v = sum(pv1),
-            pty_s = (seat))
+## 2) Standardize the party identifier to a single key
+##    - use the LABEL if present, else the raw value
+##    - trim spaces; normalize accents; keep a consistent case
+mk_party_key <- function(x) {
+  x_chr <- as.character(haven::as_factor(x))    # turns labelled/factor -> labels
+  x_chr <- stri_trim_both(x_chr)
+  x_chr <- stri_trans_nfkc(x_chr)               # normalize diacritics/width
+  x_chr
+}
 
-italy_national_votesandseats <- italy_data %>%
+## 3) Collapse to one row per (yr, party)
+italy_national_partydata <- italy_data %>%
+  mutate(pty_key = mk_party_key(pty)) %>%
+  group_by(yr, pty_key, .drop = TRUE) %>%
+  summarize(
+    pty_v = sum(pv1,  na.rm = TRUE),            # total votes per party
+    pty_s = sum(seat, na.rm = TRUE),            # total seats per party
+    .groups = "drop"
+  )
+
+## 4) (Optional) quick check for any lingering dupes (should be none)
+italy_national_partydata %>%
+  count(yr, pty_key) %>%
+  filter(n > 1)
+
+## 5) Turn those totals into national ENP for that year
+italy_enp_national <- italy_national_partydata %>%
   group_by(yr) %>%
-  summarize(total_votes = sum(pv1),
-            total_seats = sum(seat))
-  
+  mutate(
+    vote_share = pty_v / sum(pty_v, na.rm = TRUE),
+    seat_share = pty_s / sum(pty_s, na.rm = TRUE)
+  ) %>%
+  summarize(
+    ENP_votes = 1 / sum(vote_share^2, na.rm = TRUE),
+    ENP_seats = 1 / sum(seat_share^2, na.rm = TRUE),
+    .groups = "drop"
+  )
 
 ```
