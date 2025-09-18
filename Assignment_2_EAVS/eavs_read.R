@@ -2,13 +2,14 @@
 # ------------------------------------------------------
 # Requires: tidyverse, haven, janitor (optional)
 # Installs if missing:
-pkgs <- c("tidyverse", "haven", "janitor")
+pkgs <- c("tidyverse", "haven", "janitor", "here")
 to_install <- pkgs[!pkgs %in% installed.packages()[, "Package"]]
 if (length(to_install)) install.packages(to_install, dependencies = TRUE)
 
 library(tidyverse)
 library(haven)
 library(janitor)
+library(here)
 
 # ---- 1) Source URL (zip containing .sav) ----
 eavs_zip_url <- "https://www.eac.gov/sites/default/files/2025-06/2024_EAVS_for_Public_Release_V1.sav_.zip"
@@ -54,8 +55,8 @@ message("Rows x Cols (labelled): ", paste(dim(eavs), collapse = " x "))
 print(head(eavs, 3))
 
 # ---- 8) Save a cached copy for faster reloads later ----
-saveRDS(eavs, file = "eavs_2024_labelled_clean_names.rds")
-saveRDS(eavs_factor, file = "eavs_2024_factors_clean_names.rds")
+#saveRDS(eavs, file = "eavs_2024_labelled_clean_names.rds")
+#saveRDS(eavs_factor, file = "eavs_2024_factors_clean_names.rds")
 
 # Tip:
 #   - Use `eavs` when you want to retain numeric codes + labels.
