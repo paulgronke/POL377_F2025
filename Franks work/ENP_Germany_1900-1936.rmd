@@ -1,0 +1,163 @@
+---
+title: "German_Weimar_ENP"
+author: "Frank"
+date: "`r Sys.Date()`"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+  
+```{r setup, include=FALSE}
+
+  knitr::opts_chunk$set(echo = TRUE)
+  
+  suppressPackageStartupMessages({
+    library(dplyr)
+    library(ggplot2)
+    library(readr)
+    library(here)
+    library(knitr)
+  })
+  
+```
+  
+  ## Germany ENP Analysis
+  
+  This is my analysis of the Effective Number of Parties in Germany for elections 
+  from 1900-1932. I have added insighful analysis of the election formula and some history in Germany.
+  
+```{r data-import, include = FALSE}
+  # --- Load exactly your file and object ---
+  load(url("https://www.dropbox.com/scl/fi/kp1lty1chtgzye8gnufl4/clea_lc_20240419.RData?rlkey=phvtoh91a48v9jky1m1120vnw&st=h7lnys7v&dl=1"))
+  
+   # Loads clea_lc_20240419
+  
+  
+  missing_codes_num  <- c(-990, -992, -994)
+  missing_codes_char <- as.character(missing_codes_num)
+  
+  clea_lc_20240419 <- clea_lc_20240419 %>%
+    # numeric columns
+    mutate(across(
+      where(is.numeric),
+      ~ ifelse(. %in% missing_codes_num, NA, .)
+    )) %>%
+    # character columns
+    mutate(across(
+      where(is.character),
+      ~ ifelse(. %in% missing_codes_char, NA, .)
+    )) %>%
+    # factor columns
+    mutate(across(
+      where(is.factor),
+      ~ {
+        x <- as.character(.)
+        x[x %in% missing_codes_char] <- NA_character_
+        factor(x)
+      }
+    ))
+  
+  # --- Scope: German, 1900–1932 ---
+  #
+countries <- c("Russian Federation")
+russia <- clea_lc_20240419 %>%
+    filter(ctr_n %in% countries, yr >= 2000, yr <= 2025)
+  
+```
+  
+  ## Calculating the ENP for 1903 for Constituency 1
+  
+  This replicates what we did for Data Lab 1
+  
+  
+```{r enp_2013_cst1, echo=FALSE}
+russia_2016 <- russia %>%
+    filter(yr == 2016) %>%
+    group_by(cst, cst_n) %>%
+    summarize(enp_v = 1/sum(pvs1^2),
+              enp_s = 1/sum((seat/mag)^2),
+              yr = first(yr),
+              mag = first(mag),
+              cst_n = first(cst_n)) %>%
+    ungroup()
+  
+kable(russia_2016, caption = "ENP for Germany, 1903, Constituency 1")
+  
+```
+  
+## Appears to be no seats for Germany in 1903.
+
+Perhaps there are no seat values?
+
+```{r check_seats, echo=FALSE}
+
+germany %>%
+  select(seat,mag) %>%
+    glimpse()
+
+# Looks like all NA values. Need to just use EPN(v)
+
+```
+
+  
+```{r enp_v_all, echo=FALSE}
+
+germany_1903_alldistricts <- germany %>%
+    filter(yr == 1903) %>%
+    group_by(cst, cst_n) %>%
+    summarize(enp_v = 1/sum(pvs1^2),
+#              enp_s = 1/sum((seat/mag)^2),
+              yr = first(yr),
+              mag = first(mag),
+              cst_n = first(cst_n)) %>%
+    ungroup()
+  
+kable(germany_1903_alldistricts, caption = "ENP for Germany, 1903, All Constituencies")
+  
+# Histogram of ENP(v)
+max_v <- max(germany_1903_alldistricts$enp_v, na.rm = TRUE)
+
+ggplot(germany_1903_alldistricts, aes(x = enp_v)) +
+  geom_histogram(binwidth = 0.25, boundary = 1, closed = "left") +
+  # (Optional) add a smooth density curve on top
+  geom_density(aes(y = after_stat(density)), linewidth = 1) +
+  scale_x_continuous(limits = c(1, max_v), breaks = scales::pretty_breaks(n = 6)) +
+  labs(
+    title = "Distribution of ENP (Votes), Germany 1903",
+    x = "ENP (Votes)",
+    y = "Number of Constituencies"
+  ) +
+  theme_minimal()
+  
+```
+  
+## Calculating ENP for all years from 1900-1932  
+  
+  
+```{r enp_all, echo=FALSE}
+
+germany_1900_1932 <- germany %>%
+    filter(yr >= 1900 & yr <= 1932) %>%
+    group_by(yr, cst, cst_n) %>%
+    summarize(enp_v = 1/sum(pvs1^2),
+#              enp_s = 1/sum((seat/mag)^2),
+              yr = first(yr),
+              mag = first(mag),
+              cst_n = first(cst_n)) %>%
+    ungroup()
+  
+ggplot(germany_1900_1932, aes(x = enp_v)) +
+  geom_histogram(binwidth = 0.25, boundary = 1, closed = "left") +
+  # (Optional) add a smooth density curve on top
+  geom_density(aes(y = after_stat(density)), linewidth = 1) +
+  facet_wrap(~ yr, scales = "free") +
+  scale_x_continuous(limits = c(1, 7), breaks = scales::pretty_breaks(n = 6)) +
+  labs(
+    title = "Distribution of ENP (Votes), Germany 1903",
+    x = "ENP (Votes)",
+    y = "Number of Constituencies"
+  ) +
+  theme_minimal()
+  
+```
+  
