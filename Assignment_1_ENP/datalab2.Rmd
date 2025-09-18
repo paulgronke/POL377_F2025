@@ -83,3 +83,21 @@ italy_enp_national <- italy_national_partydata %>%
   )
 
 ```
+
+## Graphics
+
+```{r graphics}
+
+ggplot(italy_enp, aes(x = enp_v, y = enp_s)) +
+    geom_point(alpha = 0.7) +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "red") +
+    geom_smooth(method = "loess", formula = y ~ x, se = FALSE, color = "blue") +
+    facet_wrap(~ yr) +
+    labs(
+      title = paste("Italy — ENP by Constituency"),
+      x = "ENP (votes)",
+      y = "ENP (seats)"
+    ) +
+    theme_minimal(base_size = 12)
+
+```
