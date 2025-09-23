@@ -2,6 +2,9 @@
 data/
 *.sav
 
+# ignore google documents
+*.gdoc
+
 # R / RStudio
 .Rproj.user/
 *.Rproj

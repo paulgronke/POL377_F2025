@@ -35,7 +35,7 @@ eavs_raw <- read_sav(sav_path, user_na = TRUE)
 
 # Handle missing values. Code adapted from ENP Assignment
 
-missing_codes_num  <- c(-88, -99)
+missing_codes_num  <- c(-77, -88, -99)
 missing_codes_char <- as.character(missing_codes_num)
 
 eavs_raw <- eavs_raw %>%
