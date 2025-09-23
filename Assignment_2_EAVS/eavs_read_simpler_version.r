@@ -33,6 +33,33 @@ sav_path <- file.path(
 # 6) Read SPSS with labels preserved
 eavs_raw <- read_sav(sav_path, user_na = TRUE)
 
+# Handle missing values. Code adapted from ENP Assignment
+
+missing_codes_num  <- c(-88, -99)
+missing_codes_char <- as.character(missing_codes_num)
+
+eavs_raw <- eavs_raw %>%
+  # numeric columns
+  mutate(across(
+    where(is.numeric),
+    ~ ifelse(. %in% missing_codes_num, NA, .)
+  )) %>%
+  # character columns
+  mutate(across(
+    where(is.character),
+    ~ ifelse(. %in% missing_codes_char, NA, .)
+  )) %>%
+  # factor columns
+  mutate(across(
+    where(is.factor),
+    ~ {
+      x <- as.character(.)
+      x[x %in% missing_codes_char] <- NA_character_
+      factor(x)
+    }
+  ))
+
+
 # 7) Clean names (simple, class-friendly)
 eavs <- eavs_raw %>%
   as_tibble() %>%
