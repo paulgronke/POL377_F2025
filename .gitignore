@@ -1,5 +1,6 @@
 # ignore data
 data/
+*.sav
 
 # R / RStudio
 .Rproj.user/
