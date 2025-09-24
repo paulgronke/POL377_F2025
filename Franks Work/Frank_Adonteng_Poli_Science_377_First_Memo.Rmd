@@ -23,16 +23,16 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
-```{r}
+```{r echo = FALSE, include= TRUE}
 load(url("https://www.dropbox.com/scl/fi/kp1lty1chtgzye8gnufl4/clea_lc_20240419.RData?rlkey=phvtoh91a48v9jky1m1120vnw&st=h7lnys7v&dl=1"))
 
 ```
 
-
+Here us some insights. 
 
 ---- Germany ENP Analysis
 
-```{r}
+```{r echo= FALSE, include= TRUE}
  # --- Handle missing codes (same as professor did for Italy) ---
 missing_codes_num  <- c(-990, -992, -994)
 missing_codes_char <- as.character(missing_codes_num)
@@ -62,8 +62,9 @@ germany <- clea_lc_20240419 %>%
 
 ## Calculating the ENP for 1 constuency
 
+Who cares?
 
-```{r}
+```{r echo= FALSE, include= TRUE}
 de_cst1 <- germany %>%
   dplyr::filter(yr == germany_years[1], cst == 1) %>%
   dplyr::group_by(cst, cst_n) %>%
@@ -86,7 +87,7 @@ knitr::kable(de_cst1,
 
 --- This Bar graph show the mean ENP_votes across all constituencies for each year:
 
-```{r}
+```{r echo= FALSE, include= TRUE}
 ## Calculating the ENP for contituencies.  
 
 de_all <- germany %>%
@@ -118,7 +119,7 @@ ggplot2::ggplot(de_avg, ggplot2::aes(x = factor(yr), y = mean_enp_v)) +
 --- This Histogram shows the distribution of district-level ENP_votes for each election.
 
 
-```{r}
+```{r echo= FALSE, include= TRUE}
 ggplot2::ggplot(de_all, ggplot2::aes(x = enp_v)) +
   ggplot2::geom_histogram(binwidth = 0.5, fill = "darkorange", color = "black") +
   ggplot2::facet_wrap(~ yr) +
@@ -132,7 +133,7 @@ ggplot2::ggplot(de_all, ggplot2::aes(x = enp_v)) +
 
 
 
-```{r}
+```{r echo= FALSE, include= TRUE}
 # --- Nationwide ENP for Germany (Votes & Seats) ---
 de_party_totals <- germany %>%
   dplyr::group_by(ctr_n, yr, pty) %>%
