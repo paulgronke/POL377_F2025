@@ -37,7 +37,7 @@ foreach v of varlist `r(varlist)' {
 describe
 count
 codebook _all, compact
-tab F1g
+
 
 * OPTIONAL 5. Save as a Stata dataset for easy reuse
 save "eavs_2024.dta", replace
