@@ -1,6 +1,7 @@
 # ignore data
 data/
 *.sav
+*.dta
 
 # ignore google documents
 *.gdoc
