@@ -1,11 +1,13 @@
 ---
-title: "EAVS 2024 – Provisional Ballot Usage"
-author: "Paul Gronke"
-date: "`r Sys.Date()`"
-output: html_document
-editor_options: 
-  chunk_output_type: console
+title: "vote by mail"
+author: "Julia Pullano"
+date: "2025-09-24"
+output: pdf_document
 ---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 
 ```{r setup, echo=FALSE, include=TRUE}
 # Load libraries
@@ -13,7 +15,8 @@ library(tidyverse)
 library(haven)
 library(janitor)
 library(maps)        # For state boundaries
-library(ggplot2)     # For mapping
+library(ggplot2) 
+library(dplyr)# For mapping
 
 # Run the source script that loads the EAVS data into an object called `eavs`
 source("eavs_read_simpler_version.r")
@@ -24,79 +27,52 @@ source("eavs_read_simpler_version.r")
 ```{r eavs-provisional-ballot-usage, echo=TRUE, include=TRUE, warning=FALSE, message=FALSE}
 
 # Calculate provisional usage by state
-provisional_by_state <- eavs %>%
+mail_by_state <- eavs %>%
   group_by(state_full) %>%
   summarise(
-    provisional_ballots = sum(f1e, na.rm = TRUE),  # Provisional ballots cast
+    mail_ballots = sum(f1d, na.rm = TRUE),  # Provisional ballots cast
     valid_ballots       = sum(f1a, na.rm = TRUE),  # Total voters
     .groups = "drop"
   ) %>%
   mutate(
-    provisional_rate = (provisional_ballots / valid_ballots) * 100
+    mail_rate = (mail_ballots / valid_ballots) * 100
   ) %>%
   arrange(state_full) %>%
   rename(State = state_full,
-         `Provisional Ballots Cast` = provisional_ballots,
+         `Mail Ballots Cast` = mail_ballots,
          `Valid Ballots Cast` = valid_ballots,
-         `Provisional Usage (%)` = provisional_rate)
+         `Mail Usage (%)` = mail_rate)
 
 # Display the table
 knitr::kable(
-  provisional_by_state,
-  caption = "Provisional Ballot Usage by State (EAVS 2024)",
+  mail_by_state,
+  caption = "Mail Ballot Usage by State (EAVS 2024)",
   digits = 2
 )
 
 
 ```
-```{r eavs-provisional-ballot-usage, echo=TRUE, include=TRUE, warning=FALSE, message=FALSE}
 
-# Calculate mail_in usage by state
-vote_by_mail_state <- eavs %>%
-  group_by(state_full) %>%
-  summarise(
-    vote_by_mail_state = sum(f1d, na.rm = TRUE),  # Provisional ballots cast
-    valid_ballots       = sum(f1a, na.rm = TRUE),  # Total voters
-    .groups = "drop"
-  ) %>%
-  mutate(
-    mail_in_rate = (vote_by_mail_state / valid_ballots) * 100
-  ) %>%
-  arrange(state_full) %>%
-  rename(State = state_full,
-         `mail_in_ballots_cast` = provisional_ballots,
-         `Valid Ballots Cast` = valid_ballots,
-         `Provisional Usage (%)` = provisional_rate)
-
-# Display the table
-knitr::kable(
-  provisional_by_state,
-  caption = "Provisional Ballot Usage by State (EAVS 2024)",
-  digits = 2
-)
-
-
-```
 
 ```{r eavs-provisional-ballot-map, echo=TRUE, include=TRUE, warning=FALSE, message=FALSE}
 # Get US states map data
 us_states <- map_data("state")
 
 # Prepare data for join (convert to lowercase state names)
-provisional_map_data <- provisional_by_state %>%
+mail_map_data <- mail_by_state %>%
   mutate(region = tolower(State))
 
 # Join with map data
 map_data_joined <- us_states %>%
-  left_join(provisional_map_data, by = "region")
+  left_join(mail_map_data, by = "region")
 
 # Plot
-ggplot(map_data_joined, aes(long, lat, group = group, fill = `Provisional Usage (%)`)) +
+ggplot(map_data_joined, aes(long, lat, group = group, fill = `Mail Usage (%)`)) +
   geom_polygon(color = "white") +
   coord_fixed(1.3) +
   scale_fill_viridis_c(option = "plasma", na.value = "grey90") +
   labs(
-    title = "Provisional Ballot Usage by State (EAVS 2024)",
+    title = "Mail Ballot Usage by State (EAVS 2024)",
     fill = "% of Valid Ballots Cast"
   ) +
   theme_minimal()
@@ -108,15 +84,15 @@ ggplot(map_data_joined, aes(long, lat, group = group, fill = `Provisional Usage 
 ```{r provisional_county_map, echo=TRUE, include=TRUE}
 
 # Step 1: Summarise provisional usage by county (jurisdiction)
-provisional_by_county <- eavs %>%
+mail_by_county <- eavs %>%
   group_by(state_full, jurisdiction_name) %>%
   summarise(
-    provisional_ballots = sum(f1e, na.rm = TRUE),
+    mail_ballots = sum(f1d, na.rm = TRUE),
     valid_ballots       = sum(f1a, na.rm = TRUE),
     .groups = "drop"
   ) %>%
   mutate(
-    provisional_rate = (provisional_ballots / valid_ballots) * 100,
+    mail_rate = (mail_ballots / valid_ballots) * 100,
     region  = tolower(state_full),
     subregion = tolower(jurisdiction_name)
   )
@@ -224,3 +200,4 @@ if (use_limits) {
 }
 
 p
+

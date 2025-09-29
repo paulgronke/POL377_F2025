@@ -1,11 +1,8 @@
 ---
-title: "EAVS 2024 – Provisional Ballot Usage"
-author: "Paul Gronke"
-date: "`r Sys.Date()`"
+title: "mine"
 output: html_document
-editor_options: 
-  chunk_output_type: console
 ---
+
 
 ```{r setup, echo=FALSE, include=TRUE}
 # Load libraries
@@ -55,23 +52,23 @@ knitr::kable(
 vote_by_mail_state <- eavs %>%
   group_by(state_full) %>%
   summarise(
-    vote_by_mail_state = sum(f1d, na.rm = TRUE),  # Provisional ballots cast
+    vote_by_mail_ballots = sum(f1d, na.rm = TRUE),  # Provisional ballots cast
     valid_ballots       = sum(f1a, na.rm = TRUE),  # Total voters
     .groups = "drop"
   ) %>%
   mutate(
-    mail_in_rate = (vote_by_mail_state / valid_ballots) * 100
+    mail_in_rate = (vote_by_mail_ballots / valid_ballots) * 100
   ) %>%
   arrange(state_full) %>%
   rename(State = state_full,
-         `mail_in_ballots_cast` = provisional_ballots,
+         `Mail-In Ballots Cast` = vote_by_mail_ballots,
          `Valid Ballots Cast` = valid_ballots,
-         `Provisional Usage (%)` = provisional_rate)
+         `Mail-In Usage (%)` = mail_in_rate)
 
 # Display the table
 knitr::kable(
   provisional_by_state,
-  caption = "Provisional Ballot Usage by State (EAVS 2024)",
+  caption = "Mail-In Ballot Usage by State (EAVS 2024)",
   digits = 2
 )
 
@@ -83,23 +80,23 @@ knitr::kable(
 us_states <- map_data("state")
 
 # Prepare data for join (convert to lowercase state names)
-provisional_map_data <- provisional_by_state %>%
+mail_in_map_data <- vote_by_mail_state %>%
   mutate(region = tolower(State))
 
 # Join with map data
 map_data_joined <- us_states %>%
-  left_join(provisional_map_data, by = "region")
+  left_join(mail_in_map_data, by = "region")
 
 # Plot
-ggplot(map_data_joined, aes(long, lat, group = group, fill = `Provisional Usage (%)`)) +
+ggplot(map_data_joined, aes(long, lat, group = group, fill = `Mail-In Usage (%)`)) +
   geom_polygon(color = "white") +
   coord_fixed(1.3) +
   scale_fill_viridis_c(option = "plasma", na.value = "grey90") +
   labs(
-    title = "Provisional Ballot Usage by State (EAVS 2024)",
+    title = "Mail-In Ballot Usage by State (EAVS 2024)",
     fill = "% of Valid Ballots Cast"
   ) +
-  theme_minimal()
+  theme_bw()
 
 ```
 
