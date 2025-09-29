@@ -1,5 +1,25 @@
+* 0. Import SPSS file directly
+*    Force FIPSCode to be string on import
+
+
+import spss using ///
+"2024_EAVS_for_Public_Release_V1.sav/2024_EAVS_for_Public_Release_V1.sav", ///
+    clear 
+
+capture confirm numeric variable FIPSCode
+if !_rc {
+    tostring FIPSCode, gen(fips_str) format(%010.0f)
+    drop FIPSCode
+    rename fips_str FIPSCode
+}
+
+* Now FIPSCode is a 10-character string.
+* Keep only the first 5 digits (state+county code)
+gen GEOID = substr(FIPSCode, 1, 5)
+	
+	
 * 1) Build the state rates table from your EAVS file (if you haven't already)
-use eavs_2024.dta, clear
+*use eavs_2024.dta, clear
 collapse (sum) prov_cast=F1e valid_cast=F1a, by(State_Full)
 gen prov_rate = cond(valid_cast>0, 100*prov_cast/valid_cast, .)
 keep State_Full prov_rate prov_cast valid_cast
