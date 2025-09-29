@@ -1,0 +1,232 @@
+---
+title: "Elections American Style First Memo"
+author: "Frank Adonteng"
+date: "2025-09-09"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+library(tidyverse)
+library(ggplot2)
+library(textdata)
+library(dplyr)
+library(readr)
+library(knitr)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r echo=FALSE, include=TRUE, warning=FALSE,error=FALSE}
+load(url("https://www.dropbox.com/scl/fi/kp1lty1chtgzye8gnufl4/clea_lc_20240419.RData?rlkey=phvtoh91a48v9jky1m1120vnw&st=h7lnys7v&dl=1"))
+
+```
+
+
+
+---- Germany ENP Analysis
+
+```{r echo=FALSE, include=TRUE, warning=FALSE,error=FALSE}
+missing_codes_num  <- c(-990, -992, -994)
+missing_codes_char <- as.character(missing_codes_num)
+
+clea_lc_20240419 <- clea_lc_20240419 %>%
+  mutate(across(where(is.numeric),
+                ~ ifelse(. %in% missing_codes_num, NA, .))) %>%
+  mutate(across(where(is.character),
+                ~ ifelse(. %in% missing_codes_char, NA, .))) %>%
+  mutate(across(where(is.factor),
+                ~ {
+                  x <- as.character(.)
+                  x[x %in% missing_codes_char] <- NA_character_
+                  factor(x)
+                }))
+
+# --- Scope: Germany, post-1920 elections ---
+germany_years <- c(1924, 1928, 1930, 1932)
+
+germany <- clea_lc_20240419 %>%
+  dplyr::filter(ctr_n == "Germany", yr %in% germany_years)
+
+  
+```
+
+
+
+## Calculating the ENP for all constuency
+
+
+```{r echo=FALSE, include=TRUE, warning=FALSE,error=FALSE}
+de_cst1 <- germany %>%
+  dplyr::filter(yr == germany_years[1]) %>%
+  dplyr::group_by(cst, cst_n) %>%
+  dplyr::summarize(
+    enp_v = 1/sum(pvs1^2, na.rm = TRUE),
+    enp_s = 1/sum((seat/mag)^2, na.rm = TRUE),
+    yr    = dplyr::first(yr),
+    mag   = dplyr::first(mag),
+    cst_n = dplyr::first(cst_n),
+    .groups = "drop"
+  )
+
+knitr::kable(de_cst1,
+             caption = paste0("ENP for Germany, ", germany_years[1], ", Constituency 1"))
+
+```
+
+
+
+
+--- This Bar graph show the mean ENP_votes across all constituencies for each year:
+
+```{r echo=FALSE, include=TRUE, warning=FALSE,error=FALSE}
+## Calculating the ENP for contituencies.  
+
+de_all <- germany %>%
+  dplyr::group_by(yr, cst, cst_n) %>%
+  dplyr::summarize(
+    enp_v = 1/sum(pvs1^2, na.rm = TRUE),
+    enp_s = 1/sum((seat/mag)^2, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Calculate mean ENP (Votes) by year
+de_avg <- de_all %>%
+  dplyr::group_by(yr) %>%
+  dplyr::summarize(mean_enp_v = mean(enp_v, na.rm = TRUE))
+
+# Bar chart of average ENP
+ggplot2::ggplot(de_avg, ggplot2::aes(x = factor(yr), y = mean_enp_v)) +
+  ggplot2::geom_col(fill = "steelblue") +
+  ggplot2::labs(title = "Average ENP (Votes) in Germany, 1924–1932",
+                x = "Election Year",
+                y = "Average ENP (Votes)") +
+  ggplot2::theme_minimal()
+
+
+
+```
+
+
+--- This Histogram shows the distribution of district-level ENP_votes for each election.
+
+
+
+```{r echo=FALSE, include=TRUE, warning=FALSE,error=FALSE}
+# Compute per-year medians
+med_by_year <- de_all %>%
+  dplyr::filter(!is.na(enp_v)) %>%
+  dplyr::group_by(yr) %>%
+  dplyr::summarise(median_enp_v = stats::median(enp_v), .groups = "drop")
+
+# Plot with median lines
+ggplot2::ggplot(de_all, ggplot2::aes(x = enp_v)) +
+  ggplot2::geom_histogram(binwidth = 0.5, fill = "darkorange", color = "black") +
+  ggplot2::facet_wrap(~ yr) +
+  ggplot2::geom_vline(
+    data = med_by_year,
+    ggplot2::aes(xintercept = median_enp_v),
+    linetype = "dashed", color = "black", linewidth = 0.7,
+    inherit.aes = FALSE
+  ) +
+  # (Optional) add a small "Median" label at the top
+  ggplot2::geom_text(
+    data = med_by_year,
+    ggplot2::aes(x = median_enp_v, y = Inf, label = paste0("Median = ", round(median_enp_v, 2))),
+    vjust = 1.2, color = "black", size = 3, inherit.aes = FALSE
+  ) +
+  ggplot2::labs(
+    title = "Distribution of ENP (Votes) Across German Constituencies",
+    x = "ENP (Votes)",
+    y = "Count of Constituencies"
+  ) +
+  theme_grey()
+```
+
+
+
+
+```{r echo=FALSE, include=TRUE, warning=FALSE,error=FALSE}
+# --- Nationwide ENP for Germany (Votes & Seats) ---
+de_party_totals <- germany %>%
+  dplyr::group_by(ctr_n, yr, pty) %>%
+  dplyr::summarize(
+    votes = sum(pv1,  na.rm = TRUE),
+    seats = sum(seat, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+de_totals <- de_party_totals %>%
+  dplyr::group_by(ctr_n, yr) %>%
+  dplyr::summarize(
+    totalvotes = sum(votes, na.rm = TRUE),
+    totalseats = sum(seats, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+de_party_shares <- de_party_totals %>%
+  dplyr::left_join(de_totals, by = c("ctr_n", "yr")) %>%
+  dplyr::mutate(
+    vote_share = votes / totalvotes,
+    # protect against years with no seat totals
+    seat_share = dplyr::if_else(totalseats > 0, seats / totalseats, NA_real_)
+  )
+
+de_enp_nat <- de_party_shares %>%
+  dplyr::group_by(ctr_n, yr) %>%
+  dplyr::summarize(
+    ENP_votes = 1 / sum(vote_share^2, na.rm = TRUE),
+    ENP_seats = dplyr::if_else(all(is.na(seat_share)),
+                               NA_real_,
+                               1 / sum(seat_share^2, na.rm = TRUE)),
+    .groups = "drop"
+  )
+
+knitr::kable(de_enp_nat, caption = "Nationwide Effective Number of Parties (Germany)")
+
+# Line plot, like the Italy example. Seats line drawn only if available.
+p_de <- ggplot2::ggplot(de_enp_nat, ggplot2::aes(x = yr)) +
+  ggplot2::geom_line(ggplot2::aes(y = ENP_votes, color = "Votes"), linewidth = 1.1) +
+  ggplot2::geom_point(ggplot2::aes(y = ENP_votes, color = "Votes"), size = 2)
+
+if (!all(is.na(de_enp_nat$ENP_seats))) {
+  p_de <- p_de +
+    ggplot2::geom_line(ggplot2::aes(y = ENP_seats, color = "Seats"), linewidth = 1.1) +
+    ggplot2::geom_point(ggplot2::aes(y = ENP_seats, color = "Seats"), size = 2)
+}
+
+p_de +
+  ggplot2::scale_color_manual(values = c("Votes" = "steelblue")) +
+  ggplot2::labs(
+    title = "Nationwide ENP (Germany)",
+    x = "Election Year",
+    y = "ENP",
+    color = NULL
+  ) +
+  ggplot2::theme_minimal(base_size = 13) +
+  ggplot2::theme(panel.grid.minor = ggplot2::element_blank(),
+                 legend.position = "bottom")
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
