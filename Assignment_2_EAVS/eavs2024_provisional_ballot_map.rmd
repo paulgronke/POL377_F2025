@@ -49,7 +49,8 @@ knitr::kable(
 
 
 ```
-```{r eavs-provisional-ballot-usage, echo=TRUE, include=TRUE, warning=FALSE, message=FALSE}
+
+```{r eavs-provisional-ballot-usage2, echo=TRUE, include=TRUE, warning=FALSE, message=FALSE}
 
 # Calculate mail_in usage by state
 vote_by_mail_state <- eavs %>%
