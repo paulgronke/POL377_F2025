@@ -9,7 +9,7 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r setup, echo=FALSE, include=TRUE}
+```{r setup2, echo=FALSE, include=TRUE}
 # Load libraries
 library(tidyverse)
 library(haven)
@@ -84,7 +84,7 @@ ggplot(map_data_joined, aes(long, lat, group = group, fill = `Mail Usage (%)`)) 
 ```{r provisional_county_map, echo=TRUE, include=TRUE}
 
 # Step 1: Summarise provisional usage by county (jurisdiction)
-mail_by_county <- eavs %>%
+mail_by_state <- eavs %>%
   group_by(state_full, jurisdiction_name) %>%
   summarise(
     mail_ballots = sum(f1d, na.rm = TRUE),
@@ -98,51 +98,93 @@ mail_by_county <- eavs %>%
   )
 
 # Step 2: Get US counties map
-us_counties <- map_data("county")
+us_states <- map_data("state")
 
 # Step 3: Join map with data
-map_county_joined <- us_counties %>%
-  left_join(provisional_by_county, by = c("region", "subregion"))
+map_state_joined <- us_states %>%
+  left_join(mail_by_state, by = c("region", "subregion"))
 
 # Step 4: Plot
-ggplot(map_county_joined, aes(long, lat, group = group, fill = provisional_rate)) +
+ggplot(map_state_joined, aes(long, lat, group = group, fill = mail_rate)) +
   geom_polygon(color = NA) +
   coord_fixed(1.3) +
   scale_fill_viridis_c(option = "plasma", na.value = "grey90") +
   labs(
-    title = "Provisional Ballot Usage by County (EAVS 2024)",
+    title = "Provisional Ballot Usage by State (EAVS 2024)",
+    fill = "% of Valid Ballots"
+  ) +
+  theme_void()
+```
+
+```{r vbm_county_map, echo=TRUE, include=TRUE}
+
+# Step 1: Summarise provisional usage by county (jurisdiction)
+vbm_by_county <- eavs %>%
+  group_by(state_full, jurisdiction_name) %>%
+  summarise(
+    vbm_ballots = sum(f1d, na.rm = TRUE),
+    valid_ballots       = sum(f1a, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    vbm_rate = (vbm_ballots / valid_ballots) * 100,
+    region  = tolower(state_full),
+    subregion = jurisdiction_name %>%
+      tolower() %>%
+      str_replace("\\s+county$", "") %>%   # drop trailing " county"
+      str_replace("\\s+parish$", "") %>%   # drop trailing " parish" (Louisiana)
+      str_replace("\\s+city$", "") %>%     # drop trailing " city" (VA, MO)
+      str_trim()
+  )
+
+# Step 2: Get US counties map
+us_counties <- map_data("county")
+
+# Step 3: Join map with data
+map_county_joined <- us_counties %>%
+  left_join(vbm_by_county, by = c("region", "subregion"))
+
+# Step 4: Plot
+ggplot(map_county_joined, aes(long, lat, group = group, fill = vbm_rate)) +
+  geom_polygon(color = NA) +
+  coord_fixed(1.3) +
+  scale_fill_viridis_c(option = "plasma", na.value = "grey90") +
+  labs(
+    title = "Vote by Mail Ballot Usage by County (EAVS 2024)",
     fill = "% of Valid Ballots"
   ) +
   theme_void()
 ```
 
 
-## Provisional Ballot Usage – County (Jurisdiction) Map (FIPS-based)
 
-```{r county_map_fips_safe, echo=TRUE, include=TRUE}
+```{r county_map_fips_safe, echo=TRUE, include=FALSE}
 library(sf)
 library(tigris)
 library(stringr)
 options(tigris_use_cache = TRUE)
 
 # 1) Summarize by county FIPS with safe division
-provisional_by_fips <- eavs %>%
+vbm_by_fips <- eavs %>%
   mutate(
     # Ensure 5-digit FIPS as characters (keep leading zeros)
-    fips5 = case_when(
-      is.na(fips_code) ~ NA_character_,
-      TRUE ~ str_pad(as.character(fips_code), width = 5, side = "left", pad = "0")
+    fips5 = if_else(
+      is.na(fips_code),
+      NA_character_,
+      substr(as.character(fips_code), 1, 5)
     )
   ) %>%
   group_by(fips5) %>%
   summarise(
-    provisional_ballots = sum(f1e, na.rm = TRUE),
+    vbm_ballots = sum(f1d, na.rm = TRUE),
     valid_ballots       = sum(f1a, na.rm = TRUE),
+    state_abbr = first(state_abbr),
+    jurisdiction_name = first(jurisdiction_name),
     .groups = "drop"
   ) %>%
   mutate(
-    provisional_rate = if_else(valid_ballots > 0,
-                               100 * provisional_ballots / valid_ballots,
+    vbm_rate = if_else(valid_ballots > 0,
+                               100 * vbm_ballots / valid_ballots,
                                NA_real_)  # avoid Inf/NaN
   )
 
@@ -152,29 +194,29 @@ counties_sf <- tigris::counties(cb = TRUE, class = "sf") %>%
 
 # 3) Join and project
 county_map_data <- counties_sf %>%
-  left_join(provisional_by_fips, by = c("GEOID" = "fips5"))
+  left_join(vbm_by_fips, by = c("GEOID" = "fips5"))
 
 county_map_data_proj <- st_transform(county_map_data, 5070)
 
 # 4) Compute a finite max for the legend; fall back if none
-finite_max <- suppressWarnings(max(county_map_data_proj$provisional_rate, na.rm = TRUE))
+finite_max <- suppressWarnings(max(county_map_data_proj$vbm_rate, na.rm = TRUE))
 use_limits <- is.finite(finite_max) && finite_max > 0
 
 # 5) Optional visibility: print quick diagnostics to the console
 message("Counties matched with data: ",
-        sum(!is.na(county_map_data_proj$provisional_rate)), " of ",
+        sum(!is.na(county_map_data_proj$vbml_rate)), " of ",
         nrow(county_map_data_proj))
 
 message("Any zero valid-ballot counties? ",
-        any(provisional_by_fips$valid_ballots == 0, na.rm = TRUE))
+        any(vbm_by_fips$valid_ballots == 0, na.rm = TRUE))
 
 # 6) Plot (conditionally apply limits)
 p <- ggplot(county_map_data_proj) +
-  geom_sf(aes(fill = provisional_rate), color = NA) +
+  geom_sf(aes(fill = vbm_rate), color = NA) +
   labs(
-    title = "Provisional Ballot Usage by County (EAVS 2024)",
-    subtitle = "Rate = (Provisional Ballots Cast ÷ Valid Ballots Cast) × 100",
-    fill = "% Provisional",
+    title = "VBM Ballot Usage by County (EAVS 2024)",
+    subtitle = "Rate = (VBM Ballots Cast ÷ Valid Ballots Cast) × 100",
+    fill = "% VBM",
     caption = "Source: EAVS 2024"
   ) +
   theme_void() +
@@ -200,4 +242,20 @@ if (use_limits) {
 }
 
 p
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```
 
