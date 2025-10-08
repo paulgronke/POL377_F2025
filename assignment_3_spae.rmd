@@ -1,11 +1,14 @@
 ---
-title: "Assignment_3"
-output: html_document
+title: "Assignment_3_SPAE"
+author: "Dr. Paul Gronke"
+date: "`r Sys.Date()`"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-library(tidyverse)
 library(knitr)
 ```
 
@@ -26,8 +29,6 @@ Make sure you make the working directory so that it is "looking" in the "Assignm
 library(tidyverse)
 library(haven)
 library(janitor) # creates nice tables using the tabyl command and supports piping
-library(kableExtra)
-library(scales)
 
 # Read the SPAE data from Stata
 spae_stata <- read_dta("mitu0051_output.dta")
@@ -57,10 +58,15 @@ spae_spss %>%
 
 ```
 
+## Step 3: Learn how to take advantage of SPSS labels using the "sjlabelled" package. 
+
+You will want to install the "sjlabelled" package if it is not already installed.
+
+
 ```{r sjlabelled_tables}
 library(sjlabelled)
 
-table(as_label(spae_spss$Q39))
+table(as_label(spae_spss$Q1))
 table(as_label(spae_spss$pid3))
 
 # spae_spss %>%
@@ -70,6 +76,7 @@ table(as_label(spae_spss$pid3))
 #   tabyl(as_label(spae_spss$pid3))
 
 ```
+
 
 ## Step 4: Learn how to use survey weights in R
 
@@ -136,26 +143,4 @@ spae_spss %>% as_survey_design(., weights = weight_stacked) %>%
 ```
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+## Step 5: Create a table of voter confidence by Party ID
