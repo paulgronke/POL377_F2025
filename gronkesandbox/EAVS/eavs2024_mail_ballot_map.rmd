@@ -1,0 +1,228 @@
+---
+title: "EAVS 2024 – Mail Ballot Usage"
+author: "Paul Gronke"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, echo=FALSE, include=TRUE}
+# Load libraries
+library(tidyverse)
+library(haven)
+library(janitor)
+library(maps)        # For state boundaries
+library(ggplot2)     # For mapping
+
+# Run the source script that loads the EAVS data into an object called `eavs`
+source("eavs_read_simpler_version.r")
+```
+
+## Vote by Mail Ballot Usage
+
+```{r eavs-mail-ballot-usage, echo=TRUE, include=TRUE, warning=FALSE, message=FALSE}
+
+# Calculate provisional usage by state
+vbm_by_state <- eavs %>%
+  group_by(state_full) %>%
+  summarise(
+    vbm_ballots = sum(f1d, na.rm = TRUE),  # Provisional ballots cast
+    valid_ballots       = sum(f1a, na.rm = TRUE),  # Total voters
+    .groups = "drop"
+  ) %>%
+  mutate(
+    vbm_rate = (vbm_ballots / valid_ballots) * 100
+  ) %>%
+  arrange(state_full) %>%
+  rename(State = state_full,
+         `Vote By Mail Ballots Cast` = vbm_ballots,
+         `Valid Ballots Cast` = valid_ballots,
+         `Vote by Mail Usage (%)` = vbm_rate)
+
+# Calculate VBM usage by state with full vote by mail fix 
+vbm_by_state2 <- eavs %>%
+  group_by(state_full) %>%
+  summarise(
+    vbm_ballots_d = sum(f1d, na.rm = TRUE),  # VBM ballots (non-universal states)
+    vbm_ballots_g = sum(f1g, na.rm = TRUE),  # VBM ballots (full VBM states)
+    valid_ballots = sum(f1a, na.rm = TRUE),  # Total valid ballots
+    .groups = "drop"
+  ) %>%
+  mutate(
+    # Use f1g if it's non-missing and > 0, otherwise fall back to f1d
+    vbm_ballots = if_else(!is.na(vbm_ballots_g) & vbm_ballots_g > 0,
+                          vbm_ballots_g,
+                          vbm_ballots_d),
+    vbm_rate = (vbm_ballots / valid_ballots) * 100
+  ) %>%
+  arrange(state_full) %>%
+  rename(State = state_full,
+         `Vote By Mail Ballots Cast` = vbm_ballots,
+         `Valid Ballots Cast` = valid_ballots,
+         `Vote by Mail Usage (%)` = vbm_rate)
+
+# Display the table
+knitr::kable(
+  vbm_by_state,
+  caption = "Vote by Mail Ballot Usage by State (EAVS 2024)",
+  digits = 2
+)
+
+
+```
+
+```{r eavs-vbm-ballot-map, echo=TRUE, include=TRUE, warning=FALSE, message=FALSE}
+# Get US states map data
+us_states <- map_data("state")
+
+# Prepare data for join (convert to lowercase state names)
+vbm_map_data <- vbm_by_state2 %>%
+  mutate(region = tolower(State))
+
+# Join with map data
+map_data_joined <- us_states %>%
+  left_join(vbm_map_data, by = "region")
+
+# Plot
+ggplot(map_data_joined, aes(long, lat, group = group, fill = `Vote by Mail Usage (%)`)) +
+  geom_polygon(color = "white") +
+  coord_fixed(1.3) +
+  scale_fill_viridis_c(option = "plasma", na.value = "grey90") +
+  labs(
+    title = "Vote by Mail Ballot Usage by State (EAVS 2024)",
+    fill = "% of Valid Ballots Cast"
+  ) +
+  theme_minimal()
+
+```
+
+## Vote by Mail Ballot Usage Rate – County Map
+
+```{r vbm_county_map, echo=TRUE, include=TRUE}
+
+# Step 1: Summarise provisional usage by county (jurisdiction)
+vbm_by_county <- eavs %>%
+  group_by(state_full, jurisdiction_name) %>%
+  summarise(
+    vbm_ballots = sum(f1d, na.rm = TRUE),
+    valid_ballots       = sum(f1a, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    vbm_rate = (vbm_ballots / valid_ballots) * 100,
+    region  = tolower(state_full),
+    subregion = jurisdiction_name %>%
+      tolower() %>%
+      str_replace("\\s+county$", "") %>%   # drop trailing " county"
+      str_replace("\\s+parish$", "") %>%   # drop trailing " parish" (Louisiana)
+      str_replace("\\s+city$", "") %>%     # drop trailing " city" (VA, MO)
+      str_trim()
+  )
+
+# Step 2: Get US counties map
+us_counties <- map_data("county")
+
+# Step 3: Join map with data
+map_county_joined <- us_counties %>%
+  left_join(vbm_by_county, by = c("region", "subregion"))
+
+# Step 4: Plot
+ggplot(map_county_joined, aes(long, lat, group = group, fill = vbm_rate)) +
+  geom_polygon(color = NA) +
+  coord_fixed(1.3) +
+  scale_fill_viridis_c(option = "plasma", na.value = "grey90") +
+  labs(
+    title = "Vote by Mail Ballot Usage by County (EAVS 2024)",
+    fill = "% of Valid Ballots"
+  ) +
+  theme_void()
+```
+
+
+## Mail Ballot Usage – County (Jurisdiction) Map (FIPS-based)
+
+```{r county_map_fips_safe, echo=TRUE, include=FALSE}
+library(sf)
+library(tigris)
+library(stringr)
+options(tigris_use_cache = TRUE)
+
+# 1) Summarize by county FIPS with safe division
+vbm_by_fips <- eavs %>%
+  mutate(
+    # Ensure 5-digit FIPS as characters (keep leading zeros)
+    fips5 = if_else(
+      is.na(fips_code),
+      NA_character_,
+      substr(as.character(fips_code), 1, 5)
+    )
+  ) %>%
+  group_by(fips5) %>%
+  summarise(
+    vbm_ballots = sum(f1d, na.rm = TRUE),
+    valid_ballots       = sum(f1a, na.rm = TRUE),
+    state_abbr = first(state_abbr),
+    jurisdiction_name = first(jurisdiction_name),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    vbm_rate = if_else(valid_ballots > 0,
+                               100 * vbm_ballots / valid_ballots,
+                               NA_real_)  # avoid Inf/NaN
+  )
+
+# 2) County shapes (drop territories)
+counties_sf <- tigris::counties(cb = TRUE, class = "sf") %>%
+  filter(!STATEFP %in% c("60","66","69","72","78"))  # AS, GU, MP, PR, VI
+
+# 3) Join and project
+county_map_data <- counties_sf %>%
+  left_join(vbm_by_fips, by = c("GEOID" = "fips5"))
+
+county_map_data_proj <- st_transform(county_map_data, 5070)
+
+# 4) Compute a finite max for the legend; fall back if none
+finite_max <- suppressWarnings(max(county_map_data_proj$vbm_rate, na.rm = TRUE))
+use_limits <- is.finite(finite_max) && finite_max > 0
+
+# 5) Optional visibility: print quick diagnostics to the console
+message("Counties matched with data: ",
+        sum(!is.na(county_map_data_proj$vbml_rate)), " of ",
+        nrow(county_map_data_proj))
+
+message("Any zero valid-ballot counties? ",
+        any(vbm_by_fips$valid_ballots == 0, na.rm = TRUE))
+
+# 6) Plot (conditionally apply limits)
+p <- ggplot(county_map_data_proj) +
+  geom_sf(aes(fill = vbm_rate), color = NA) +
+  labs(
+    title = "VBM Ballot Usage by County (EAVS 2024)",
+    subtitle = "Rate = (VBM Ballots Cast ÷ Valid Ballots Cast) × 100",
+    fill = "% VBM",
+    caption = "Source: EAVS 2024"
+  ) +
+  theme_void() +
+  theme(legend.position = "right",
+        plot.title = element_text(face = "bold"))
+
+if (use_limits) {
+  p <- p +
+    scale_fill_viridis_c(
+      option = "plasma",
+      na.value = "grey90",
+      limits = c(0, finite_max),
+      labels = scales::label_number(accuracy = 0.1)
+    )
+} else {
+  # Let ggplot pick breaks; still set palette and NA color
+  p <- p +
+    scale_fill_viridis_c(
+      option = "plasma",
+      na.value = "grey90",
+      labels = scales::label_number(accuracy = 0.1)
+    )
+}
+
+p

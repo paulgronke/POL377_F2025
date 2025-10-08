@@ -1,0 +1,49 @@
+---
+title: "EAVS 2024 – Executive Summary Table 1 (First 3 Columns)"
+author: "Paul Gronke"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, echo=FALSE, include=TRUE}
+# Load libraries
+library(tidyverse)
+library(haven)
+library(janitor)
+
+# This next command runs the source script that loads the EAVS data
+source("eavs_read_simpler_version.r")
+
+
+```
+
+```{r table_data_prep, echo=TRUE, include=TRUE}
+# Prepare the data for Table 1
+# Summarise by state
+table1_cols1to3 <- eavs %>%
+  mutate(
+    state_full        = as.character(state_full),
+    jurisdiction_name = as.character(jurisdiction_name)
+  ) %>%
+  group_by(state_full) %>%
+  summarise(
+    `Total EAVS Jurisdictions`       = n_distinct(jurisdiction_name),
+    `Total Active Registered Voters` = sum(a1b, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(state_full) %>%
+  rename(State = state_full)
+```
+
+```{r table1_display, echo=TRUE, include=TRUE}
+
+# Display table
+knitr::kable(
+  table1_cols1to3,
+  caption = "Executive Summary Table 1 (First 3 Columns)"
+)
+
+
+```

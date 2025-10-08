@@ -1,0 +1,147 @@
+---
+title: "Assignment_3_SPAE"
+author: "Dr. Paul Gronke"
+date: "`r Sys.Date()`"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(knitr)
+```
+
+## Step 1: Read in the SPAE 
+
+1. The SPAE Report is available here https://electionlab.mit.edu/research/projects/survey-performance-american-elections
+2. The SPAE Data are avaiable at Datavers https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/GWBAP5
+
+I encourage you to learn how to download data yourself from dataverse, but for the purposes
+of this lab, I have stored a Stata and SPSS version of the SPAE in the Assignment folder. 
+
+To read the SPAE from either Stata or SPSS, you need to have the haven package. We will
+also load the tidyverse package. 
+
+Make sure you make the working directory so that it is "looking" in the "Assignment_3_SPAE" folder. 
+
+```{r read_data}
+library(tidyverse)
+library(haven)
+library(janitor) # creates nice tables using the tabyl command and supports piping
+
+# Read the SPAE data from Stata
+spae_stata <- read_dta("../../data/SPAE/mitu0051_output.dta")
+spae_spss <- read_sav("../../data/SPAE/MITU0051_OUTPUT.sav")
+
+```
+
+## Step 2: Explore the SPAE
+
+Browse the data. See if there are any key differences between the SPSS and Stata versions. 
+
+```{r explore_data}
+glimpse(spae_stata)
+glimpse(spae_spss)
+
+summary(spae_stata)
+summary(spae_spss)
+
+table(spae_spss$Q1)
+table(spae_spss$pid3)
+
+spae_spss %>%
+ tabyl(Q1)
+
+spae_spss %>%
+ tabyl(pid3)
+
+```
+
+## Step 3: Learn how to take advantage of SPSS labels using the "sjlabelled" package. 
+
+You will want to install the "sjlabelled" package if it is not already installed.
+
+
+```{r sjlabelled_tables}
+library(sjlabelled)
+
+table(as_label(spae_spss$Q1))
+table(as_label(spae_spss$pid3))
+
+# spae_spss %>%
+#   tabyl(as_label(spae_spss$Q1))
+# 
+# spae_spss %>%
+#   tabyl(as_label(spae_spss$pid3))
+
+```
+
+
+## Step 4: Learn how to use survey weights in R
+
+R has a package called "survey" that allows you to use survey weights. There is also a
+package called "srcvyr" that allows you to use the "dplyr" syntax with survey weights. 
+
+Finally, there is a package called "gtsummary" that recognizes "survey weighted objects", 
+which means you can make nice tables with survey weighted data.
+
+You should install these if you do not already have them.
+
+Documentation for using survey data in R is provided at https://tidy-survey-r.github.io/tidy-survey-book/
+
+
+```{r survey_weighted_tables}
+library(survey)
+library(srvyr)
+library(gtsummary)
+
+# Convert all   columns which are "labeled" as factors since these will display
+# better in tables in R. 
+
+spae_spss <- spae_spss %>%
+  mutate(across(
+    where(haven::is.labelled),
+    ~ haven::as_factor(.x, levels = "labels")
+  ))
+
+# This alternative method converts only specific columns to factors
+
+# spae_spss <- spae_spss %>%
+#   mutate(
+#     Q1   = haven::as_factor(Q1,   levels = "labels"),
+#     pid3 = haven::as_factor(pid3, levels = "labels")
+#   )
+
+# Create a survey design object
+
+
+spae_spss_design <- spae_spss %>%
+  as_survey_design(weights = weight_stacked)
+
+# Create a survey weighted table using gtsummary
+
+# spae_spss_design %>%
+#   tabyl(., Q1) 
+#   
+spae_spss_design %>%
+  select(Q1) %>%
+  tbl_svysummary(.)
+
+spae_spss_design %>%
+  select(pid3) %>%
+  tbl_svysummary(.)
+
+# Now show how you can do this in one pipe without creating a separate object
+
+spae_spss %>% as_survey_design(., weights = weight_stacked) %>%
+  tbl_svysummary(include =Q1) %>%
+  modify_header(label ~ "**PID3**") %>%
+  modify_caption("**Weighted distribution of PID3**")
+
+
+```
+
+
+## Step 5: Create a table of voter confidence by Party ID

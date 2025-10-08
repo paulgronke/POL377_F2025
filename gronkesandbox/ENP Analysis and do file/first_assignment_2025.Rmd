@@ -1,0 +1,86 @@
+---
+title: "First Memo and Data Lab Assignment"
+author: "Political Science 377, Fall 2025"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+
+requiredPackages = c('tidyverse')
+for(p in requiredPackages){
+  if(!require(p,character.only = TRUE)) install.packages(p)
+  library(p,character.only = TRUE)
+}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+
+```
+
+## General Assignment
+
+Your assignment is to take *district level results* from the 
+Constituency Level Elections Archive (https://electiondataarchive.org/) and from these data, estimate the Effective Number of Parties (ENP) based on votes and on seats, for at least eight or more total elections, in two or more countries (e.g. 4 elections in 2 countries; 3 elections in 3 countries; etc). 
+
+### Script Assignment
+
+Your _first script_ is due by Friday, September 19, at 5 pm. Your computing assignment should include:
+
+1. Plots of ENP_votes against ENP_seats for your chosen country / election year comparisons, plotted at the district level, and with a non-linear line of fit for each plot. 
+
+2. Calculated ENP_votes and ENP_seats _nationwide_ for each county / election. 
+
+### Final Assignment
+
+Your _final writeup_ is due Friday September 26, at 5 pm. Your final writeup should be framed as an update and extension to Table 8.1 “Effective Number of Parties: Most recent national elections for the lower house, as of 1985” from Rein Taagpera and Matthew Shugart, Seats and Votes for at least eight or more total elections. 
+
+Your final write up should include some set of ilustrative plots of $ENP_{v}$ against $ENP_{s}$ at the district level, and a table of your calculated $ENP_{v}$ and $ENP_{s}$ at the national level. 
+
+You should be ready to discuss the nature of the electoral system and the nature of social cleavages in your chosen countries, and how these translate into the effective number of parties.
+
+You are required to turn in approximately 5 page write-up, 1.5 or double spaced, including tables and graphics, on the effective number of parties in your chosen country/elections.  
+Your write-up= need not be a full scale academic paper, but it should have some of the same elements, including:
+
+1.	A clear statement of what question you are addressing, hypothesis you are testing, or analysis that you are conducting.
+2.	Some empirical analysis, consisting of your table of estimated ENP.
+3.	Some commentary about what patterns are revealed in these data. 
+
+To help inform your write-up, you may find the readings by 
+Taagpera and Shugart, Duverger, Cox, as well as other sources
+(Wikipedia is pretty good!) 
+your countrys' election systems useful. Please fully cite if you
+use any internet sources such as Wikipedia.
+
+## Statistical Programming Guidelines
+
+1. *Data*: You should obtain your data from the CLEA site. To help
+you out, I have downloaded and made avalable the data on a Dropbox
+location. You should be able to see files here: 
+(https://www.dropbox.com/sh/3x4z1f6f4v6m5o0/AADbX4eYHkX4Jt2rX1e8HhT-a?dl=0). 
+   - My preference would be that your script access these files directly from Dropbox, but if you have trouble with that, you can download the files to your computer and read them in from there.
+
+2. *Processing the data*: We will work this week in the Data Lab
+on scripts to access and analyze these data. 
+
+3. *Pro tip* Look at the codebook first before you start to analyze
+the data. 
+
+### Code to read the files in R and in Stata
+
+In R, this command will access the datafile. 
+
+**load(url("https://www.dropbox.com/scl/fi/kp1lty1chtgzye8gnufl4/clea_lc_20240419.RData?rlkey=phvtoh91a48v9jky1m1120vnw&st=h7lnys7v&dl=1"))**
+
+In Stata, this command will access the datafile. Full
+disclosure, for some reason, the Stata saved file is 20 timeslarger than the R file and takes some time
+to download. 
+
+**use "https://www.dropbox.com/scl/fi/lsvfiky9lkc1kizdhh11x/clea_lc_20240419.dta?rlkey=vzt02aymcz40rtgmcy3ak5wph&st=b0ah5xkk&dl=1" **
+
+We will work on the rest of the data processing in the Data Lab.
+
+
+
+
