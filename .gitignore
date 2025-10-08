@@ -20,4 +20,4 @@ data/
 .quarto
 
 # ignore Gronke's local sandbox
-gronkesandbox/
+ # gronkesandbox/
