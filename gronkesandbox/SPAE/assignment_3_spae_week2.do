@@ -177,6 +177,20 @@ preserve
 restore
 
 * 7B. “Voter confidence by State” table (weighted % confident)
+*   export as word
+preserve
+    keep if inputstate!="" & Q42_2!=""
+    * confident_nat already coded 0/1
+    table (row inputstate), ///
+        statistic(mean confident_nat [aweight=weight_stacked]) ///
+        nformat(%4.1f)
+
+    collect label var confident_nat "% Confident (national)"
+    collect style header, title("Percent Confident (national) by State")
+    collect export "SPAE_tables.docx", as(docx) replace
+restore
+
+* 7C. “Voter confidence by State” table (weighted % confident)
 * Simple, readable: collapse then list (or export)
 preserve
     keep if inputstate!="" & Q42_2!=""
@@ -186,7 +200,7 @@ preserve
     list inputstate pct_conf, abbreviate(16) noobs sepby()
 restore
 
-* 7C. Horizontal bar chart – % Confident by State (sorted), with whitespace
+* 7D. Horizontal bar chart – % Confident by State (sorted), with whitespace
 preserve
     keep if inputstate!="" & Q42_2!=""
     collapse (mean) pct_conf=confident_nat [aweight=weight_stacked], by(inputstate)
