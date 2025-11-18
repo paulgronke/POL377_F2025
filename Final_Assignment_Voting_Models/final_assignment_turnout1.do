@@ -5,7 +5,7 @@
 
 * Start a log file so your work and results are saved
 capture log close
-log using "final_assignment_turnut.log", text replace
+log using "final_assignment_turnout.log", text replace
 
 clear all
 set more off
