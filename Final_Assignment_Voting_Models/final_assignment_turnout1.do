@@ -5,7 +5,7 @@
 
 * Start a log file so your work and results are saved
 capture log close
-log using "final_assignment_step1.log", text replace
+log using "final_assignment_turnut.log", text replace
 
 clear all
 set more off
@@ -23,30 +23,16 @@ keep if inlist(VCF0004, 1948, 1952, 1956, 1960, 1964, 1968, ///
                          1972, 1976, 1980, 1984, 1988, ///
                          1992, 1996, 2000, 2004, 2008, 2012)
 
-*******************************************************
-* 2. Explore the data: unweighted and weighted year tables
-*******************************************************
-
-* Unweighted frequency table for VCF0004
-preserve
-tabulate VCF0004
-restore
-
 * Drop cases with missing or non-positive CDF weight VCF0009z
 drop if missing(VCF0009z)
 drop if VCF0009z <= 0
 
 * Set survey design using CDF full-sample weight (VCF0009z)
-svyset _n [weight = VCF0009z]
+svyset _n [pweight = VCF0009z]
 
-* Weighted table for VCF0004 (like tbl_svysummary on the year)
-svy: tabulate VCF0004, percent format(%5.1f)
-
-* Now create the same table using the aweight command
-tabulate VCF0004 [aweight = VCF0009z]
 
 *******************************************************
-* 3. Create recoded variables (voted, vote_democrat, flipper)
+* 3. Create recoded variables (voted, vote_democrat, flipper, race, income)
 *******************************************************
 
 * Voted in election (0 = did not vote, 1 = voted)
@@ -76,9 +62,43 @@ replace democrat_incumbent_flipper = -1 if inlist(VCF0004, 1956, 1960, 1972, 197
 
 label variable democrat_incumbent_flipper "Dem incumbent=1, Rep incumbent=-1"
 
-* Code missing values for Likes and Dislines
+* Race dummy: Black vs Non-Black (matches pol377black in R)
+generate byte pol377black = .
+replace pol377black = 1 if VCF0106 == 2                  // Black
+replace pol377black = 0 if inlist(VCF0106, 1, 3)         // White or Other
+label define pol377black_lbl 0 "Non-Black" 1 "Black"
+label values pol377black pol377black_lbl
+label variable pol377black "Black respondent (1=Black, 0=Non-Black)"
 
+* Income dummies (pol377inc2–pol377inc5), following your R coding
+* VCF0114 categories assumed 1–5
+generate byte pol377inc2 = .
+replace pol377inc2 = 1 if VCF0114 == 2
+replace pol377inc2 = 0 if inlist(VCF0114, 1, 3, 4, 5)
+label variable pol377inc2 "Income category 2 (vs others)"
+
+generate byte pol377inc3 = .
+replace pol377inc3 = 1 if VCF0114 == 3
+replace pol377inc3 = 0 if inlist(VCF0114, 1, 2, 4, 5)
+label variable pol377inc3 "Income category 3 (vs others)"
+
+generate byte pol377inc4 = .
+replace pol377inc4 = 1 if VCF0114 == 4
+replace pol377inc4 = 0 if inlist(VCF0114, 1, 2, 3, 5)
+label variable pol377inc4 "Income category 4 (vs others)"
+
+generate byte pol377inc5 = .
+replace pol377inc5 = 1 if VCF0114 == 5
+replace pol377inc5 = 0 if inlist(VCF0114, 1, 2, 3, 4)
+label variable pol377inc5 "Income category 5 (vs others)"
+
+* Age variable (numeric)
+generate age = VCF0101
+label variable age "Respondent age"
+
+* Code missing values for Likes and Dislikes example
 replace VCF0322 = . if VCF0322 == 999
+
 
 *******************************************************
 * 4. Turnout over time (tables + line chart)
@@ -89,11 +109,10 @@ preserve
 collapse (mean) prop_voted = voted [aweight = VCF0009z], by(VCF0004)
 sort VCF0004
 
-* Format to two decimals, roughly like rounding in R
+* Format to two decimals
 format prop_voted %4.2f
 
-* Table: Year and proportion who voted
-list VCF0004 prop_voted, noobs abbreviate(12)
+list VCF0004 prop_voted, sepby(VCF0004)
 
 * Line plot of turnout over time
 twoway line prop_voted VCF0004, ///
@@ -105,39 +124,58 @@ twoway line prop_voted VCF0004, ///
 
 restore
 
+
 *******************************************************
-* 5. "The Simple Act" (VCF0322) over time and by vote choice
+* 5. Turnout model for 1988: OLS vs Logit + margins
 *******************************************************
 
-* (a) Mean Simple Act score over time (weighted)
+* Keep things simple: focus on 1988 
 preserve
-collapse (mean) mean_simple_act = VCF0322 [aweight = VCF0009z], by(VCF0004)
-sort VCF0004
-format mean_simple_act %4.2f
-list VCF0004 mean_simple_act, noobs abbreviate(12)
+keep if VCF0004 == 1988
+
+
+* OLS / Linear Probability Model (LPM) with survey weights
+svy: regress voted pol377black pol377inc2 pol377inc3 pol377inc4 pol377inc5 age
+
+* Average marginal effects for all predictors 
+margins, dydx(*) 
+
+* Show marginal effects table
+estimates table
+
+* Logistic regression (logit) with survey weights
+svy: logit voted pol377black pol377inc2 pol377inc3 pol377inc4 pol377inc5 age
+
+* Average marginal effects for all predictors 
+margins, dydx(*) 
+
+* Show marginal effects table
+estimates table
+
+
+* Predicted probabilities over age for a specific profile:
+* Non-Black (pol377black=0), income category 3 (pol377inc3=1),
+* other income dummies = 0, age from 18 to 75
+
+quietly margins, at( ///
+    age = (18(1)75) ///
+    pol377black = (0) ///
+    pol377inc2 = (0) ///
+    pol377inc3 = (0) ///
+    pol377inc4 = (0) ///
+    pol377inc5 = (0) ///
+) predict(pr)
+
+* Plot predicted probability of turnout over age
+marginsplot, ///
+    noci ///
+    title("Predicted Probability of Turnout by Age (1988)") ///
+    xtitle("Age") ///
+    ytitle("Pr(Voted)") ///
+    ylabel(0(.1)1)
+
 restore
 
-* (b) Simple Act by vote choice, wide table (Dem vs Rep)
-preserve
-
-* Drop missing vote choice
-drop if missing(vote_democrat)
-
-* Weighted mean of VCF0322 by year and vote_democrat
-collapse (mean) mean_simple_act = VCF0322 [aweight = VCF0009z], ///
-         by(VCF0004 vote_democrat)
-
-* Reshape to have separate columns for vote choice
-reshape wide mean_simple_act, i(VCF0004) j(vote_democrat)
-
-* vote_democrat == 0 -> Republican; == 1 -> Democrat
-label variable mean_simple_act0 "Mean Simple Act: Voted Republican"
-label variable mean_simple_act1 "Mean Simple Act: Voted Democrat"
-
-sort VCF0004
-list VCF0004 mean_simple_act1 mean_simple_act0, noobs abbreviate(12)
-
-restore
 
 * Close the log file
 log close
