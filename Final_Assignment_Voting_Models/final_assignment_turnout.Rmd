@@ -1,5 +1,5 @@
 ---
-title: "Exploring the ANES Cumulative File (1948–2012)"
+title: "TURNOUT EXAMPLE Exploring the ANES Cumulative File (1948–2012)"
 author: "A Person"
 output: html_document
 editor_options: 
@@ -17,6 +17,7 @@ library(janitor)
 library(sjlabelled)  # Can create tables with "nice" variable labels
 library(knitr)
 library(kableExtra)
+library(margins)
 
 # gtsummary: show N and %
 theme_gtsummary_language("en")
@@ -49,28 +50,6 @@ cumulative_nes_weight <- cumulative_nes %>%
   )
 ```
 
-## Explore the data
-
-Simple display of the total number of respondents in the cumulative file for
-each year. 
-
-```{r explore_data}
-# 1) Unweighted frequency table for VCF0004 (Year of Study) ----
-cumulative_nes %>%
-  tabyl(VCF0004)
-
-# 2) Weighted table for VCF0004 using gtsummary::tbl_svysummary ----
-cumulative_nes_weight %>%
-  tbl_svysummary(
-    include = VCF0004,
-    type = VCF0004 ~ "categorical",
-    statistic = all_categorical() ~ "{n} ({p}%)",
-    label = VCF0004 ~ "Year of ANES Study"
-  ) %>%
-  modify_header(label ~ "**Variable**") |>
-  bold_labels()
-```
-
 ## Create recoded variables
 
 Create new variables indicating whether the respondent voted, whether they voted
@@ -90,9 +69,24 @@ cumulative_nes_weight_recode <- cumulative_nes_weight %>%
       VCF0704a == 2 ~ 0),
     democrat_incumbent_flipper = case_when(
       VCF0004 %in% c(1948, 1952, 1964, 1968, 1980, 1996, 2000, 2012) ~ 1,
-      VCF0004 %in% c(1956, 1960, 1972, 1976, 1984, 1988, 1992, 2004, 2008) ~ -1)
-  )
-
+      VCF0004 %in% c(1956, 1960, 1972, 1976, 1984, 1988, 1992, 2004, 2008) ~ -1),
+    pol377black = case_when(
+      VCF0106 == 2 ~ 1,
+      VCF0106 %in% c(1,3) ~ 0),
+    pol377inc2 = case_when(
+      VCF0114 == 2 ~ 1,
+      VCF0114 %in% c(1,3,4,5) ~ 0),
+    pol377inc3 = case_when(
+      VCF0114 == 3 ~ 1,
+      VCF0114 %in% c(1,2,4,5) ~ 0),
+    pol377inc4 = case_when(
+      VCF0114 == 4 ~ 1,
+      VCF0114 %in% c(1,2,3,5) ~ 0),
+    pol377inc5 = case_when(
+      VCF0114 == 5 ~ 1,
+      VCF0114 %in% c(1,2,3,4) ~ 0),
+    )
+    
 ```
 
 ## Turnout Over Time
@@ -106,7 +100,7 @@ election year
 cumulative_nes_weight_recode %>%
   group_by(VCF0004) %>%
   summarize(
-    prop_voted = survey_mean(voted, na.rm = TRUE)
+    prop_voted = survey_mean(voted, na.rm = TRUE)  # Note the diff using a factor
   ) %>%
   arrange(VCF0004) %>%
   mutate(
@@ -139,56 +133,70 @@ cumulative_nes_weight_recode %>%
 
 ```
 
-## The Simple Act
+## Leighley Nagler
 
-Look at the likes and dislikes of "The Simple Act" (VCF0322) over time.
+Compare the impact of race on turnout in 1988, 2000, and 2016
+
+```{r turnout_model, echo = TRUE, include = TRUE}
+
+# Restrict survey design to individual years
+anes1988 <- subset(cumulative_nes_weight_recode, VCF0004 == 1988) %>%
+  mutate(age = as.numeric(VCF0101))   # Need to do this for the margins command to work at the end 
+anes2000 <- subset(cumulative_nes_weight_recode, VCF0004 == 2000)
+anes1016 <- subset(cumulative_nes_weight_recode, VCF0004 == 2016)
 
 
-```{r simple_act, echo = FALSE, include = TRUE}
-# The Simple Act (VCF0322) over time ----
-
-cumulative_nes_weight_recode %>%
-  group_by(VCF0004) %>%
-  summarize(
-    mean_simple_act = survey_mean(VCF0322, na.rm = TRUE)
-  ) %>%
-  arrange(VCF0004) %>%
-  mutate(
-    mean_simple_act = round(mean_simple_act, 2)
-  ) %>%
-  rename(
-    Year = VCF0004,
-    `Mean Simple Act Score` = mean_simple_act
-  ) %>%
-  knitr::kable()
-
-# The simple act by vote choice 
-
-cumulative_nes_weight_recode %>%
-  group_by(VCF0004, vote_democrat) %>%
-  summarize(
-    mean_simple_act = survey_mean(VCF0322, na.rm = TRUE),
-    .groups = "drop"
-  ) %>%
-  filter(!is.na(vote_democrat)) %>%        # remove missing vote choice
-  mutate(
-    vote_choice = case_when(
-      vote_democrat == 1 ~ "Voted Democrat",
-      vote_democrat == 0 ~ "Voted Republican"
-    ),
-    mean_simple_act = round(mean_simple_act, 2)
-  ) %>%
-  select(Year = VCF0004, vote_choice, mean_simple_act) %>%
-  pivot_wider(
-    names_from = vote_choice,
-    values_from = mean_simple_act
-  ) %>%
-  arrange(Year) %>%
-  kable(
-    caption = "Mean Simple Political Acts by Vote Choice (ANES Presidential Years)",
-    col.names = c("Year", "Voted Democrat", "Voted Republican"),
-    digits = 2,
-    align = c("c", "c", "c")
+# OLS / Linear Probability Model for 1988
+ols_1988 <- 
+  svyglm(
+    voted ~ pol377black + pol377inc2 + pol377inc3 + pol377inc4 + pol377inc5 + age,
+    design = anes1988,
+    family = gaussian()
   )
+
+# Logistic Regression (Logit) for 1988
+logit_1988 <- 
+  svyglm(
+    voted  ~ pol377black + pol377inc2 + pol377inc3 + pol377inc4 + pol377inc5 + age,
+    design = anes1988,
+    family = quasibinomial()
+  )
+
+# Display model summaries
+summary(ols_1988)
+margins(ols_1988)
+
+summary(logit_1988)
+margins(logit_1988)
+
+m <- margins(logit_1988)
+
+summary(m)
+
+plot(m)
+
+# New data for age 18–65, holding other vars at typical values
+newdat <- expand.grid(
+  pol377black = 0,
+  pol377inc2  = 0,
+  pol377inc3  = 0,
+  pol377inc4  = 0,
+  pol377inc5 = 0,
+  age         = seq(18, 75, by = 1)
+)
+
+# Predicted probabilities from the logit model
+newdat$pred_p <- predict(logit_1988, newdata = newdat, type = "response")
+
+# Plot
+
+ggplot(newdat, aes(x = age, y = pred_p)) +
+  geom_line() +
+  labs(
+    x = "Age",
+    y = "Pr(voted)",
+    title = "Predicted Probability of Turnout by Age"
+  ) +
+  theme_minimal()
 
 ```
