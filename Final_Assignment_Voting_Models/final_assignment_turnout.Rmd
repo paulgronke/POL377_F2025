@@ -38,7 +38,7 @@ Read in the ANES Cumulative File (1948-2012) and create a survey object with wei
 cumulative_nes <- read_sav("../data/ANES/anes_timeseries_cdf_spss_20220916.sav") %>%
   filter(VCF0004 %in% c(1948, 1952, 1956, 1960, 1964, 1968,
                         1972, 1976, 1980, 1984, 1988,
-                        1992, 1996, 2000, 2004, 2008, 2012))
+                        1992, 1996, 2000, 2004, 2008, 2012, 2016, 2020))
 
 # Create a survey object using the post-election full-sample weight
 # (VCF9999 is documented in the codebook as a post-election full-sample weight.)
@@ -63,16 +63,16 @@ cumulative_nes_weight_recode <- cumulative_nes_weight %>%
   mutate(
     voted = case_when(
       VCF0702 == 1 ~ 0,
-      VCF0704 == 2 ~ 1),
+      VCF0702 == 2 ~ 1),
     vote_democrat = case_when(
       VCF0704a == 1 ~ 1,
       VCF0704a == 2 ~ 0),
     democrat_incumbent_flipper = case_when(
-      VCF0004 %in% c(1948, 1952, 1964, 1968, 1980, 1996, 2000, 2012) ~ 1,
-      VCF0004 %in% c(1956, 1960, 1972, 1976, 1984, 1988, 1992, 2004, 2008) ~ -1),
+      VCF0004 %in% c(1948, 1952, 1964, 1968, 1980, 1996, 2000, 2012, 2016) ~ 1,  #Dem Inc
+      VCF0004 %in% c(1956, 1960, 1972, 1976, 1984, 1988, 1992, 2004, 2008, 2020) ~ -1), # GOP Inc
     pol377black = case_when(
       VCF0106 == 2 ~ 1,
-      VCF0106 %in% c(1,3) ~ 0),
+      VCF0106 %in% c(1) ~ 0),
     pol377inc2 = case_when(
       VCF0114 == 2 ~ 1,
       VCF0114 %in% c(1,3,4,5) ~ 0),
@@ -133,17 +133,15 @@ cumulative_nes_weight_recode %>%
 
 ```
 
-## Leighley Nagler
+## Leighley Nagler Replication Just for 1988
 
-Compare the impact of race on turnout in 1988, 2000, and 2016
+Compare the impact of race on turnout in 1988
 
 ```{r turnout_model, echo = TRUE, include = TRUE}
 
 # Restrict survey design to individual years
 anes1988 <- subset(cumulative_nes_weight_recode, VCF0004 == 1988) %>%
   mutate(age = as.numeric(VCF0101))   # Need to do this for the margins command to work at the end 
-anes2000 <- subset(cumulative_nes_weight_recode, VCF0004 == 2000)
-anes1016 <- subset(cumulative_nes_weight_recode, VCF0004 == 2016)
 
 
 # OLS / Linear Probability Model for 1988
@@ -175,28 +173,126 @@ summary(m)
 
 plot(m)
 
-# New data for age 18–65, holding other vars at typical values
+## Predicted turnout by age for a simple reference profile
 newdat <- expand.grid(
-  pol377black = 0,
-  pol377inc2  = 0,
+  pol377black = 0,   # non-Black
+  pol377inc2  = 0,   # baseline income category
   pol377inc3  = 0,
   pol377inc4  = 0,
-  pol377inc5 = 0,
+  pol377inc5  = 0,
   age         = seq(18, 75, by = 1)
 )
 
-# Predicted probabilities from the logit model
 newdat$pred_p <- predict(logit_1988, newdata = newdat, type = "response")
 
-# Plot
-
 ggplot(newdat, aes(x = age, y = pred_p)) +
-  geom_line() +
+  geom_line(size = 1.2) +
   labs(
     x = "Age",
-    y = "Pr(voted)",
-    title = "Predicted Probability of Turnout by Age"
+    y = "Predicted Pr(voted)",
+    title = "Predicted Probability of Turnout by Age\n(Reference: non-Black, baseline income)",
+    caption = "Logit model, ANES 1988"
   ) +
-  theme_minimal()
+  theme_minimal(base_size = 12)
+
+# This is an alternative method. It creates a predicted probability for 
+# every age for every observation, then averages these. This avoids setting the 
+# predicted probabilities to unreasonable values. 
+
+age_preds <- prediction(
+  logit_1988,
+  at   = list(age = 18:75),
+  type = "response"
+) %>%
+  as.data.frame()
+
+# Collapse to one average predicted probability per age
+age_avg <- age_preds %>%
+  group_by(age) %>%
+  summarize(
+    pred = mean(fitted, na.rm = TRUE)
+  )
+
+# Plot the *average* predicted probability by age
+ggplot(age_avg, aes(x = age, y = pred)) +
+  geom_line(size = 1.2) +
+  labs(
+    x = "Age",
+    y = "Predicted probability of voting",
+    title = "Predicted Turnout by Age (Average Adjusted Prediction)",
+    caption = "Other variables averaged over their observed values"
+  ) +
+  theme_minimal(base_size = 13)
+
+```
+
+## Leighley Nagler Replication Figure 3.3 Impact of Black vs. White on Turnout 
+
+Estimated using the ANES from 1972-2000
+
+```{r race_marginal_effects_over_time, echo = TRUE, include = TRUE, message = FALSE, warning = FALSE}
+
+# Years to include (presidential years in the cumulative file starting in 1972)
+turnout_years <- c(1972, 1976, 1980, 1984, 1988,
+                   1992, 1996, 2000, 2004, 2008,
+                   2012, 2016, 2020)
+
+# Empty data frame to store results
+race_effects <- data.frame(
+  year  = integer(),
+  ame   = numeric(),   # Average Marginal Effect
+  lower = numeric(),   # 95% CI lower
+  upper = numeric()    # 95% CI upper
+)
+
+# Loop over years, estimate logit model and marginal effect of being Black
+for (yr in turnout_years) {
+  
+  # Subset survey design to a single year
+  anes_year <- subset(cumulative_nes_weight_recode, VCF0004 == yr) %>%
+    # Make sure age is numeric for the model
+    mutate(age = as.numeric(VCF0101))
+  
+  # Logistic regression for turnout in this year
+  logit_year <- svyglm(
+    voted ~ pol377black + pol377inc2 + pol377inc3 + pol377inc4 + pol377inc5 + age,
+    design = anes_year,
+    family = quasibinomial()
+  )
+  
+  # Marginal effect of being Black (pol377black) on Pr(voted)
+  # margins() gives us the average marginal effect and a standard error
+  m_year  <- margins(logit_year, variables = "pol377black")
+  sm_year <- summary(m_year)
+  
+  # Extract the AME and the 95% CI for this year
+  race_effects <- rbind(
+    race_effects,
+    data.frame(
+      year  = yr,
+      ame   = sm_year$AME[1],
+      lower = sm_year$lower[1],
+      upper = sm_year$upper[1]
+    )
+  )
+}
+
+# Take a look at the results table (optional)
+race_effects
+
+# Plot: effect of being Black on probability of voting, 1972–2020
+ggplot(race_effects, aes(x = year, y = ame)) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_point(size = 2) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.5) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(
+    title = "Effect of Being Black on Turnout, 1972–2020",
+    subtitle = "Average marginal effect from survey-weighted logit models",
+    x = "Election Year",
+    y = "Change in Probability of Voting (Black vs. non-Black)",
+    caption = "Estimates based on ANES Cumulative File, survey-weighted svyglm + margins()"
+  ) +
+  theme_minimal(base_size = 12)
 
 ```
