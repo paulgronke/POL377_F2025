@@ -38,7 +38,7 @@ Read in the ANES Cumulative File (1948-2012) and create a survey object with wei
 # "Final_Assignment_Voting_Models" folder, so the relative path to the data folder is used.
 #
 cumulative_nes <- read_sav("../data/ANES/anes_timeseries_cdf_spss_20220916.sav") %>%
-  filter(VCF0004 %in% c(1948, 1952, 1956, 1960, 1964, 1968,
+  filter(VCF0004 %in% c(1952, 1956, 1960, 1964, 1968, # 1948 is messy
                         1972, 1976, 1980, 1984, 1988,
                         1992, 1996, 2000, 2004, 2008, 2012, 2016, 2020))
 

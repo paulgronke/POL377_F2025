@@ -21,7 +21,7 @@ use "../data/ANES/anes_timeseries_cdf_stata_20220916.dta", clear
 * Keep only presidential election years (VCF0004 = year of study)
 keep if inlist(VCF0004, 1948, 1952, 1956, 1960, 1964, 1968, ///
                          1972, 1976, 1980, 1984, 1988, ///
-                         1992, 1996, 2000, 2004, 2008, 2012)
+                         1992, 1996, 2000, 2004, 2008, 2012, 2016, 2020)
 
 * Drop cases with missing or non-positive CDF weight VCF0009z
 drop if missing(VCF0009z)
@@ -55,17 +55,17 @@ label variable vote_democrat "Voted for Democratic candidate (1=Dem, 0=Rep)"
 generate byte democrat_incumbent_flipper = .
 
 * Democratic incumbent years
-replace democrat_incumbent_flipper =  1 if inlist(VCF0004, 1948, 1952, 1964, 1968, 1980, 1996, 2000, 2012)
+replace democrat_incumbent_flipper =  1 if inlist(VCF0004, 1948, 1952, 1964, 1968, 1980, 1996, 2000, 2012, 2016)
 
 * Republican incumbent years
-replace democrat_incumbent_flipper = -1 if inlist(VCF0004, 1956, 1960, 1972, 1976, 1984, 1988, 1992, 2004, 2008)
+replace democrat_incumbent_flipper = -1 if inlist(VCF0004, 1956, 1960, 1972, 1976, 1984, 1988, 1992, 2004, 2008, 2020)
 
 label variable democrat_incumbent_flipper "Dem incumbent=1, Rep incumbent=-1"
 
 * Race dummy: Black vs Non-Black (matches pol377black in R)
 generate byte pol377black = .
 replace pol377black = 1 if VCF0106 == 2                  // Black
-replace pol377black = 0 if inlist(VCF0106, 1, 3)         // White or Other
+replace pol377black = 0 if inlist(VCF0106, 1)         // White 
 label define pol377black_lbl 0 "Non-Black" 1 "Black"
 label values pol377black pol377black_lbl
 label variable pol377black "Black respondent (1=Black, 0=Non-Black)"
@@ -119,8 +119,10 @@ twoway line prop_voted VCF0004, ///
     title("Estimated Turnout in ANES Presidential Years") ///
     xtitle("Year of ANES Study (VCF0004)") ///
     ytitle("Proportion Who Voted (survey-weighted)") ///
-    xlabel(1948(4)2012, angle(45)) ///
+    xlabel(1948(4)2020, angle(45)) ///
     ylabel(0(.1)1)
+
+graph export "turnout_over_time.png", replace width(2000)
 
 restore
 
@@ -132,7 +134,6 @@ restore
 * Keep things simple: focus on 1988 
 preserve
 keep if VCF0004 == 1988
-
 
 * OLS / Linear Probability Model (LPM) with survey weights
 svy: regress voted pol377black pol377inc2 pol377inc3 pol377inc4 pol377inc5 age
@@ -153,9 +154,11 @@ margins, dydx(*)
 estimates table
 
 
-* Predicted probabilities over age for a specific profile:
-* Non-Black (pol377black=0), income category 3 (pol377inc3=1),
-* other income dummies = 0, age from 18 to 75
+* ------------------------------------------------------
+* METHOD 1: Predicted turnout by age for a REFERENCE PROFILE
+* ------------------------------------------------------
+* Non-Black (pol377black=0), baseline income (all income dummies = 0),
+* age from 18 to 75
 
 quietly margins, at( ///
     age = (18(1)75) ///
@@ -166,13 +169,108 @@ quietly margins, at( ///
     pol377inc5 = (0) ///
 ) predict(pr)
 
-* Plot predicted probability of turnout over age
+* Plot predicted probability of turnout over age: reference voter
 marginsplot, ///
     noci ///
-    title("Predicted Probability of Turnout by Age (1988)") ///
+    title("Predicted Pr(Voted) by Age (1988)") ///
+    subtitle("Reference: Non-Black, baseline income") ///
     xtitle("Age") ///
     ytitle("Pr(Voted)") ///
     ylabel(0(.1)1)
+
+graph export "turnout_by_age_1988_reference.png", replace width(2000)
+
+
+* ------------------------------------------------------
+* METHOD 2: Average adjusted predictions by age
+* ------------------------------------------------------
+* Here we vary AGE from 18 to 75, but leave all other
+* covariates at their OBSERVED values for each respondent.
+* This matches the R code using `prediction()` + averaging.
+
+quietly margins, at(age = (18(1)75)) predict(pr)
+
+* Plot average predicted Pr(voted) by age (over observed covariates)
+marginsplot, ///
+    noci ///
+    title("Predicted Pr(Voted) by Age (1988)") ///
+    subtitle("Average adjusted prediction (other vars at observed values)") ///
+    xtitle("Age") ///
+    ytitle("Pr(Voted)") ///
+    ylabel(0(.1)1)
+
+graph export "turnout_by_age_1988_avg_adjusted.png", replace width(2000)
+
+restore
+
+
+
+*******************************************************
+* 6. Marginal effect of being Black on turnout, 1972–2020
+*******************************************************
+
+* We will estimate a survey-weighted logit for each year
+* and store the AME of pol377black, then plot them.
+
+preserve
+
+* Keep only the years we want for the Leighley & Nagler-style plot
+keep if inlist(VCF0004, 1972, 1976, 1980, 1984, 1988, 1992, 1996, 2000, 2004, 2008, 2012, 2016, 2020)
+
+* Create a temporary file to hold AMEs by year
+tempfile ame_by_year
+postfile ame_handle int year double ame se using `ame_by_year', replace
+
+* Get list of years present
+levelsof VCF0004, local(years)
+
+foreach y of local years {
+    
+    * Survey-weighted logit for that year
+    quietly svy: logit voted pol377black pol377inc2 pol377inc3 pol377inc4 pol377inc5 age ///
+        if VCF0004 == `y'
+    
+    * Average marginal effect of being Black vs Non-Black
+    quietly margins, dydx(pol377black)
+    
+    * margins stores results in r(b) and r(V)
+    matrix M = r(b)
+    matrix V = r(V)
+    
+    scalar ame = M[1,1]
+    scalar se  = sqrt(V[1,1])
+    
+    * Post results to temporary file
+    post ame_handle (`y') (ame) (se)
+}
+
+postclose ame_handle
+
+* Use the AME dataset
+use `ame_by_year', clear
+
+label variable year "Election year"
+label variable ame  "AME: Black vs Non-Black"
+label variable se   "Std. Error"
+
+* 95% confidence intervals
+generate double lower = ame - 1.96*se
+generate double upper = ame + 1.96*se
+
+* Plot: AME with 95% CI and linear trend line
+twoway ///
+    (rcap upper lower year, lwidth(medthin)) ///
+    (scatter ame year, msize(medlarge)) ///
+    (lfit ame year, lpattern(solid)), ///
+    yline(0, lpattern(dash) lcolor(gs10)) ///
+    title("Effect of Being Black on Turnout, 1972–2020") ///
+    subtitle("Average marginal effects from survey-weighted logit models") ///
+    xtitle("Election Year") ///
+    xlabel(1972(4)2020, angle(45)) ///
+    ytitle("Change in Pr(Voted) (Black vs Non-Black)") ///
+    ylabel(-0.05(0.05)0.15)
+
+graph export "black_ame_over_time.png", replace width(2000)
 
 restore
 
