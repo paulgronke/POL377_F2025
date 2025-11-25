@@ -122,6 +122,8 @@ twoway line prop_voted VCF0004, ///
     xlabel(1948(4)2020, angle(45)) ///
     ylabel(0(.1)1)
 
+graph export "turnout_over_time.png", replace width(2000)
+
 restore
 
 
@@ -171,6 +173,8 @@ marginsplot, ///
     xtitle("Age") ///
     ytitle("Pr(Voted)") ///
     ylabel(0(.1)1)
+
+graph export "turnout_by_age_1988.png", replace width(2000)
 
 restore
 
@@ -239,6 +243,8 @@ twoway ///
     xlabel(1972(4)2020, angle(45)) ///
     ytitle("Change in Pr(Voted) (Black vs Non-Black)") ///
     ylabel(-0.05(0.05)0.15)
+
+graph export "black_ame_over_time.png", replace width(2000)
 
 restore
 

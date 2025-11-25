@@ -1,7 +1,9 @@
 ---
 title: "TURNOUT EXAMPLE Exploring the ANES Cumulative File (1948–2012)"
 author: "A Person"
-output: html_document
+output: 
+  html_document:
+    keep_md: true
 editor_options: 
   chunk_output_type: console
 ---
