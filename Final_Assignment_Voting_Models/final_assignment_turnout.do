@@ -231,7 +231,10 @@ foreach y of local years {
         if VCF0004 == `y'
     
     * Average marginal effect of being Black vs Non-Black
-    quietly margins, dydx(pol377black)
+ * An expert says do not do this
+  * quietly margins, dydx(pol377black)
+ * Instead do this 
+    quietly margins, at(pol377black = (0 1))
     
     * margins stores results in r(b) and r(V)
     matrix M = r(b)
