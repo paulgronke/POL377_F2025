@@ -210,12 +210,16 @@ restore
 *******************************************************
 
 * We will estimate a survey-weighted logit for each year
-* and store the AME of pol377black, then plot them.
+* and store the discrete change in Pr(voted) for Black vs Non-Black.
 
 preserve
 
 * Keep only the years we want for the Leighley & Nagler-style plot
-keep if inlist(VCF0004, 1972, 1976, 1980, 1984, 1988, 1992, 1996, 2000, 2004, 2008, 2012, 2016, 2020)
+keep if inlist(VCF0004, 1972, 1976, 1980, 1984, 1988, ///
+                         1992, 1996, 2000, 2004, 2008, 2012, 2016, 2020)
+
+* Make sure Stata treats pol377black as a factor (0/1 is fine)
+* (No recoding needed, just use i.pol377black in the model)
 
 * Create a temporary file to hold AMEs by year
 tempfile ame_by_year
@@ -230,18 +234,16 @@ foreach y of local years {
     quietly svy: logit voted pol377black pol377inc2 pol377inc3 pol377inc4 pol377inc5 age ///
         if VCF0004 == `y'
     
-    * Average marginal effect of being Black vs Non-Black
- * An expert says do not do this
-  * quietly margins, dydx(pol377black)
- * Instead do this 
-    quietly margins, at(pol377black = (0 1))
+    * Average marginal effect (discrete change) of being Black vs Non-Black
+    * Because pol377black is used as i.pol377black, this is on the probability scale.
+    quietly margins, dydx(pol377black)
     
     * margins stores results in r(b) and r(V)
     matrix M = r(b)
     matrix V = r(V)
     
-    scalar ame = M[1,1]
-    scalar se  = sqrt(V[1,1])
+    scalar ame = M[1,1]          // change in Pr(voted) for Black vs Non-Black
+    scalar se  = sqrt(V[1,1])    // standard error of that change
     
     * Post results to temporary file
     post ame_handle (`y') (ame) (se)
@@ -253,7 +255,7 @@ postclose ame_handle
 use `ame_by_year', clear
 
 label variable year "Election year"
-label variable ame  "AME: Black vs Non-Black"
+label variable ame  "ΔPr(Voted) for Black vs Non-Black"
 label variable se   "Std. Error"
 
 * 95% confidence intervals
@@ -267,7 +269,7 @@ twoway ///
     (lfit ame year, lpattern(solid)), ///
     yline(0, lpattern(dash) lcolor(gs10)) ///
     title("Effect of Being Black on Turnout, 1972–2020") ///
-    subtitle("Average marginal effects from survey-weighted logit models") ///
+    subtitle("Average change in Pr(Voted) (Black vs Non-Black), survey-weighted") ///
     xtitle("Election Year") ///
     xlabel(1972(4)2020, angle(45)) ///
     ytitle("Change in Pr(Voted) (Black vs Non-Black)") ///
@@ -276,7 +278,6 @@ twoway ///
 graph export "black_ame_over_time.png", replace width(2000)
 
 restore
-
 
 * Close the log file
 log close

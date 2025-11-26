@@ -253,18 +253,24 @@ for (yr in turnout_years) {
   # Subset survey design to a single year
   anes_year <- subset(cumulative_nes_weight_recode, VCF0004 == yr) %>%
     # Make sure age is numeric for the model
-    mutate(age = as.numeric(VCF0101))
+    mutate(age = as.numeric(VCF0101),
+           pol377black_f = factor(pol377black, levels = c(0, 1)) 
+           )
   
   # Logistic regression for turnout in this year
   logit_year <- svyglm(
-    voted ~ pol377black + pol377inc2 + pol377inc3 + pol377inc4 + pol377inc5 + age,
+    voted ~ pol377black_f + pol377inc2 + pol377inc3 + pol377inc4 + pol377inc5 + age,
     design = anes_year,
     family = quasibinomial()
   )
   
   # Marginal effect of being Black (pol377black) on Pr(voted)
   # margins() gives us the average marginal effect and a standard error
-  m_year  <- margins(logit_year, variables = "pol377black")
+
+  # This will calculate partial derivative and we actually want 0 and 1
+  #  m_year  <- margins(logit_year, variables = "pol377black")
+  # Try this instead
+  m_year  <- margins(logit_year, variables="pol377black_f")
   sm_year <- summary(m_year)
   
   # Extract the AME and the 95% CI for this year
